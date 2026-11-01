@@ -27,7 +27,8 @@ public class ResistanceIconClient implements ClientModInitializer {
 
     // Vanilla effect colours used to recognise effects from other players' particles
     private static final int RESISTANCE_RGB = 0x9146F0;
-    private static final int SLOWNESS_RGB = 0x5A6C81;
+    private static final int SLOWNESS_RGB = 0x8BAFE0;      // current Slowness colour
+    private static final int OLD_SLOWNESS_RGB = 0x5A6C81;  // older versions
     // Set to false to outline ANY visible Resistance, not just Turtle Master
     private static final boolean REQUIRE_SLOWNESS = true;
 
@@ -62,32 +63,27 @@ public class ResistanceIconClient implements ClientModInitializer {
         if (nearest == null) return;
 
         if (!searched) findParticleData(nearest);
-        StringBuilder sb = new StringBuilder("[RI] " + nearest.getName().getString()
-                + " found=" + (particleData != null));
+        StringBuilder sb = new StringBuilder("[RI] " + nearest.getName().getString() + " colors:");
         try {
             if (particleData != null) {
                 Object v = nearest.getDataTracker().get(particleData);
                 if (v instanceof List<?> list) {
-                    sb.append(" n=").append(list.size());
-                    int i = 0;
                     for (Object o : list) {
-                        if (i++ >= 4) break;
-                        sb.append(" | ").append(o.getClass().getSimpleName());
                         for (Field f : o.getClass().getDeclaredFields()) {
-                            if (Modifier.isStatic(f.getModifiers())) continue;
+                            if (Modifier.isStatic(f.getModifiers()) || f.getType() != int.class) continue;
                             f.setAccessible(true);
-                            Object val = f.get(o);
-                            sb.append(" ").append(f.getType().getSimpleName()).append("=");
-                            if (val instanceof Integer n) sb.append(Integer.toHexString(n));
-                            else sb.append(val);
+                            sb.append(" ").append(Integer.toHexString(f.getInt(o)));
+                            break;
                         }
                     }
                 }
+            } else {
+                sb.append(" (particle data not found)");
             }
         } catch (Throwable t) {
             sb.append(" err=").append(t);
         }
-        sb.append(" turtle=").append(isTurtleMaster(nearest));
+        sb.append(" | turtle=").append(isTurtleMaster(nearest));
         client.player.sendMessage(Text.literal(sb.toString()), false);
     }
 
@@ -155,7 +151,7 @@ public class ResistanceIconClient implements ClientModInitializer {
             int rgb = readColor(o);
             if (rgb < 0) continue;
             if (rgb == RESISTANCE_RGB) resistance = true;
-            if (rgb == SLOWNESS_RGB) slowness = true;
+            if (rgb == SLOWNESS_RGB || rgb == OLD_SLOWNESS_RGB) slowness = true;
         }
         return resistance && (slowness || !REQUIRE_SLOWNESS);
     }
