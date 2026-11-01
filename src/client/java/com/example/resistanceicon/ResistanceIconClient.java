@@ -8,13 +8,20 @@ import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.render.Camera;
 import net.minecraft.client.render.RenderTickCounter;
+import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.data.TrackedData;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.particle.EntityEffectParticleEffect;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.List;
 
 /**
  * Draws the vanilla Resistance effect sprite above the head of every
@@ -29,6 +36,57 @@ public class ResistanceIconClient implements ClientModInitializer {
     private static final double MAX_DISTANCE = 64.0;
     private static final int MIN_SIZE = 8;
     private static final int MAX_SIZE = 32;
+    // Vanilla Resistance effect colour (0x9146F0)
+    private static final int RESISTANCE_RGB = 0x9146F0;
+    // Vanilla Slowness effect colour (0x5A6C81)
+    private static final int SLOWNESS_RGB = 0x5A6C81;
+    // Set to false to show the icon for ANY visible Resistance, not just Turtle Master
+    private static final boolean REQUIRE_SLOWNESS = false;
+
+    private static TrackedData<?> particleData;
+    private static boolean searched = false;
+
+    /** Finds LivingEntity's tracked "effect particles" field by type, so no mappings are needed. */
+    private static void findParticleData(PlayerEntity sample) {
+        searched = true;
+        for (Field f : LivingEntity.class.getDeclaredFields()) {
+            if (!Modifier.isStatic(f.getModifiers()) || f.getType() != TrackedData.class) continue;
+            try {
+                f.setAccessible(true);
+                TrackedData<?> td = (TrackedData<?>) f.get(null);
+                Object value = sample.getDataTracker().get(td);
+                if (value instanceof List<?>) {
+                    particleData = td;
+                    return;
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
+    /**
+     * True if the player's visible effect particles include both a Resistance
+     * colour and a Slowness colour (i.e. Turtle Master).
+     */
+    private static boolean looksLikeTurtleMaster(PlayerEntity player) {
+        if (!searched) findParticleData(player);
+        if (particleData == null) return false;
+        try {
+            Object value = player.getDataTracker().get(particleData);
+            if (!(value instanceof List<?> list) || list.isEmpty()) return false;
+            boolean resistance = false;
+            boolean slowness = false;
+            for (Object o : list) {
+                if (!(o instanceof EntityEffectParticleEffect effect)) continue;
+                int rgb = effect.getColor() & 0xFFFFFF;
+                if (rgb == RESISTANCE_RGB) resistance = true;
+                if (rgb == SLOWNESS_RGB) slowness = true;
+            }
+            return resistance && (slowness || !REQUIRE_SLOWNESS);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
 
     @Override
     public void onInitializeClient() {
@@ -61,7 +119,9 @@ public class ResistanceIconClient implements ClientModInitializer {
         for (PlayerEntity player : client.world.getPlayers()) {
             if (player == client.player && firstPerson) continue;
             if (player.isInvisible() || player.isSpectator()) continue;
-            if (!player.hasStatusEffect(StatusEffects.RESISTANCE)) continue;
+            boolean turtleMaster = player.hasStatusEffect(StatusEffects.RESISTANCE)
+                    && (player.hasStatusEffect(StatusEffects.SLOWNESS) || !REQUIRE_SLOWNESS);
+            if (!turtleMaster && !looksLikeTurtleMaster(player)) continue;
             if (player != client.player && !client.player.canSee(player)) continue;
 
             // Point just above the head (clear of the nametag).
