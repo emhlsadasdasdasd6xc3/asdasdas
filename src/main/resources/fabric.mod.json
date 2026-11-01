@@ -2,14 +2,20 @@
   "schemaVersion": 1,
   "id": "resistance-icon",
   "version": "${version}",
-  "name": "Resistance Icon",
-  "description": "Shows the Resistance effect icon above players who have the effect.",
+  "name": "Resistance Outline",
+  "description": "Gives players with Turtle Master a purple outline.",
   "authors": ["You"],
   "license": "MIT",
   "environment": "client",
   "entrypoints": {
     "client": ["com.example.resistanceicon.ResistanceIconClient"]
   },
+  "mixins": [
+    {
+      "config": "resistance-icon.client.mixins.json",
+      "environment": "client"
+    }
+  ],
   "depends": {
     "fabricloader": ">=0.18.0",
     "minecraft": "~1.21.11",
