@@ -12,7 +12,6 @@ import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.data.TrackedData;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.particle.EntityEffectParticleEffect;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
@@ -64,6 +63,19 @@ public class ResistanceIconClient implements ClientModInitializer {
         }
     }
 
+    /** Reads the colour (int field) of an effect particle without needing its class name. Returns -1 if none. */
+    private static int readColor(Object particle) {
+        try {
+            for (Field f : particle.getClass().getDeclaredFields()) {
+                if (Modifier.isStatic(f.getModifiers()) || f.getType() != int.class) continue;
+                f.setAccessible(true);
+                return f.getInt(particle) & 0xFFFFFF;
+            }
+        } catch (Throwable ignored) {
+        }
+        return -1;
+    }
+
     /**
      * True if the player's visible effect particles include both a Resistance
      * colour and a Slowness colour (i.e. Turtle Master).
@@ -77,8 +89,8 @@ public class ResistanceIconClient implements ClientModInitializer {
             boolean resistance = false;
             boolean slowness = false;
             for (Object o : list) {
-                if (!(o instanceof EntityEffectParticleEffect effect)) continue;
-                int rgb = effect.getColor() & 0xFFFFFF;
+                int rgb = readColor(o);
+                if (rgb < 0) continue;
                 if (rgb == RESISTANCE_RGB) resistance = true;
                 if (rgb == SLOWNESS_RGB) slowness = true;
             }
