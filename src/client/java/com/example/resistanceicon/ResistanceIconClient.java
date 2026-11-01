@@ -43,7 +43,7 @@ public class ResistanceIconClient implements ClientModInitializer {
     }
 
     // Set to false once everything works to stop the chat messages
-    private static final boolean DEBUG = true;
+    private static final boolean DEBUG = false;
     private static int debugTicks = 0;
 
     private static void debug(MinecraftClient client) {
