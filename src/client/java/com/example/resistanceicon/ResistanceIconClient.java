@@ -1,6 +1,9 @@
 package com.example.resistanceicon;
 
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.text.Text;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.data.TrackedData;
 import net.minecraft.entity.effect.StatusEffects;
@@ -34,7 +37,58 @@ public class ResistanceIconClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
-        // Nothing to set up; the work is done by EntityMixin.
+        // The outline itself is done by EntityMixin. This just prints debug info.
+        if (DEBUG) ClientTickEvents.END_CLIENT_TICK.register(ResistanceIconClient::debug);
+    }
+
+    // Set to false once everything works to stop the chat messages
+    private static final boolean DEBUG = true;
+    private static int debugTicks = 0;
+
+    private static void debug(MinecraftClient client) {
+        if (client.player == null || client.world == null) return;
+        if (++debugTicks % 60 != 0) return;
+
+        PlayerEntity nearest = null;
+        double best = 40 * 40;
+        for (PlayerEntity p : client.world.getPlayers()) {
+            if (p == client.player) continue;
+            double d = p.squaredDistanceTo(client.player);
+            if (d < best) {
+                best = d;
+                nearest = p;
+            }
+        }
+        if (nearest == null) return;
+
+        if (!searched) findParticleData(nearest);
+        StringBuilder sb = new StringBuilder("[RI] " + nearest.getName().getString()
+                + " found=" + (particleData != null));
+        try {
+            if (particleData != null) {
+                Object v = nearest.getDataTracker().get(particleData);
+                if (v instanceof List<?> list) {
+                    sb.append(" n=").append(list.size());
+                    int i = 0;
+                    for (Object o : list) {
+                        if (i++ >= 4) break;
+                        sb.append(" | ").append(o.getClass().getSimpleName());
+                        for (Field f : o.getClass().getDeclaredFields()) {
+                            if (Modifier.isStatic(f.getModifiers())) continue;
+                            f.setAccessible(true);
+                            Object val = f.get(o);
+                            sb.append(" ").append(f.getType().getSimpleName()).append("=");
+                            if (val instanceof Integer n) sb.append(Integer.toHexString(n));
+                            else sb.append(val);
+                        }
+                    }
+                }
+            }
+        } catch (Throwable t) {
+            sb.append(" err=").append(t);
+        }
+        sb.append(" turtle=").append(isTurtleMaster(nearest));
+        client.player.sendMessage(Text.literal(sb.toString()), false);
     }
 
     /** True if this player should get the purple outline. */
